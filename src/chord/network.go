@@ -86,17 +86,19 @@ func GetClient(addr string) (*rpc.Client, error) {
 
 func RemoteCall(aimNode string, aimFunc string, input interface{}, res interface{}) error {
 	if aimNode == "" {
-		log.Errorln("In RemoteCall the aimNode address is nil")
-		return errors.New("In RemoteCall the aimNode address is nil")
+		log.Warningln("<RemoteCall> IP address is nil")
+		return errors.New("Null address for RemoteCall")
 	}
 	c, tmp_err := GetClient(aimNode)
 	if tmp_err != nil {
-		log.Errorln("Getting aimNode client error")
+		log.Warningln("<RemoteCall> Fail to dial in ", aimNode, " and error is ", tmp_err)
 		return tmp_err
 	}
 	tmp_err = c.Call(aimFunc, input, res)
 	if tmp_err != nil {
 		log.Infoln("Can not call function in ", aimNode, " the func is ", aimFunc, tmp_err)
+	} else {
+		log.Infoln("<RemoteCall> in ", aimNode, " with ", aimFunc, " success!")
 	}
 	c.Close()
 	return tmp_err

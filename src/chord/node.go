@@ -112,11 +112,12 @@ func (this *ChordNode) Quit() {
 	this.rwLock.Unlock()
 	var succAddr string
 	this.find_first_online_succ(&succAddr)
-	tmp_err = RemoteCall(succAddr, "WrapNode.ChangePredecessor", 0, 0)
+	var o string
+	tmp_err = RemoteCall(succAddr, "WrapNode.ChangePredecessor", 0, &o)
 	if tmp_err != nil {
 		log.Errorln("In function Quit checkpre error")
 	}
-	tmp_err = RemoteCall(this.predecessor, "WrapNode.Stabilize", 0, 0)
+	tmp_err = RemoteCall(this.predecessor, "WrapNode.Stabilize", 0, &o)
 	if tmp_err != nil {
 		log.Errorln("In function Quit stabilize error")
 	}
@@ -146,8 +147,8 @@ func (this *ChordNode) Ping(addr string) bool {
 }
 
 type KeyValuePair struct {
-	key   string
-	value string
+	Key   string
+	Value string
 }
 
 func (this *ChordNode) Put(key string, value string) bool {
@@ -155,6 +156,9 @@ func (this *ChordNode) Put(key string, value string) bool {
 		//node this is sleep
 		return false
 	}
+
+	//fmt.Println("Hello this is in function Put")
+
 	var aimAddr string
 	tmp_err := this.innner_find_successor(ConsistentHash(key), &aimAddr)
 	if tmp_err != nil {
@@ -162,7 +166,8 @@ func (this *ChordNode) Put(key string, value string) bool {
 		return false
 	}
 	p := KeyValuePair{key, value}
-	tmp_err = RemoteCall(aimAddr, "WrapNode.InsertPairInData", p, 0)
+	var o string
+	tmp_err = RemoteCall(aimAddr, "WrapNode.InsertPairInData", p, &o)
 	if tmp_err != nil {
 		log.Errorln("In function Put insert pair error", key, value)
 		return false
@@ -199,7 +204,8 @@ func (this *ChordNode) Delete(key string) bool {
 		log.Errorln("In function delete find successor error", key)
 		return false
 	}
-	tmp_err = RemoteCall(aimAddr, "WrapNode.ErasePairInData", key, 0)
+	var o string
+	tmp_err = RemoteCall(aimAddr, "WrapNode.ErasePairInData", key, &o)
 	if tmp_err != nil {
 		log.Errorln("In function delete can not erase key")
 		return false
@@ -255,7 +261,8 @@ func (this *ChordNode) transfer_data(preNode string, data *map[string]string) er
 	this.dataLock.Unlock()
 	var succAddr string
 	this.find_first_online_succ(&succAddr)
-	tmp_err := RemoteCall(succAddr, "WrapNode.SubBackup", *data, 0)
+	var o string
+	tmp_err := RemoteCall(succAddr, "WrapNode.SubBackup", *data, &o)
 	if tmp_err != nil {
 		log.Errorln("In function transfer_data can not sub backup")
 		return nil
@@ -370,7 +377,8 @@ func (this *ChordNode) change_predecessor() error {
 		log.Errorln("In function change_predecessor can not find a succ")
 		return tmp_err
 	}
-	tmp_err = RemoteCall(succAddr, "WrapNode.AddBackup", this.backupSet, 0)
+	var o string
+	tmp_err = RemoteCall(succAddr, "WrapNode.AddBackup", this.backupSet, &o)
 	this.backupLock.Lock()
 	this.backupSet = make(map[string]string)
 	this.backupLock.Unlock()
@@ -406,7 +414,7 @@ func (this *ChordNode) bgMaintain() {
 	}()
 }
 
-func (this *ChordNode) stabilize() {
+func (this *ChordNode) stabilize() error {
 	var succAddr string
 	var preAddr string
 	var newSuccAddr string
@@ -414,7 +422,7 @@ func (this *ChordNode) stabilize() {
 	tmp_err := RemoteCall(succAddr, "WrapNode.GetPredecessor", 0, &preAddr)
 	if tmp_err != nil {
 		log.Errorln("In stabilize get pre error")
-		return
+		return tmp_err
 	}
 	if preAddr != "" && inDur(ConsistentHash(preAddr), this.ID, ConsistentHash(succAddr), false) {
 		newSuccAddr = preAddr
@@ -423,13 +431,15 @@ func (this *ChordNode) stabilize() {
 	tmp_err = RemoteCall(newSuccAddr, "WrapNode.GetSuccessorList", 0, tmpSuccList)
 	if tmp_err != nil {
 		log.Errorln("In stabilize GetSuccessorList error")
-		return
+		return tmp_err
 	}
 	this.set_list(&tmpSuccList)
-	tmp_err = RemoteCall(newSuccAddr, "WrapNode.notify", this.address, 0)
+	var o string
+	tmp_err = RemoteCall(newSuccAddr, "WrapNode.Notify", this.address, &o)
 	if tmp_err != nil {
 		log.Errorln("In func satbilize can not let succ notify")
 	}
+	return nil
 }
 
 func (this *ChordNode) fix_fingerTable() {
@@ -475,7 +485,7 @@ func (this *ChordNode) set_list(succ *[successorListLength]string) {
 //func for hash table:
 func (this *ChordNode) insert_pair_inData(p KeyValuePair) error {
 	this.dataLock.Lock()
-	this.dataSet[p.key] = p.value
+	this.dataSet[p.Key] = p.Value
 	this.dataLock.Unlock()
 	var succAddr string
 	tmp_err := this.find_first_online_succ(&succAddr)
@@ -483,7 +493,8 @@ func (this *ChordNode) insert_pair_inData(p KeyValuePair) error {
 		log.Warningln("Can not find a succ", p)
 	}
 	if succAddr != "" {
-		tmp_err = RemoteCall(succAddr, "WrapNode.InsertPairInBackup", p, 0)
+		var o string
+		tmp_err = RemoteCall(succAddr, "WrapNode.InsertPairInBackup", p, &o)
 		if tmp_err != nil {
 			log.Warningln("Can not success store pair in backup", p)
 		}
@@ -493,7 +504,7 @@ func (this *ChordNode) insert_pair_inData(p KeyValuePair) error {
 
 func (this *ChordNode) insert_pair_inBackup(p KeyValuePair) error {
 	this.backupLock.Lock()
-	this.backupSet[p.key] = p.value
+	this.backupSet[p.Key] = p.Value
 	this.backupLock.Unlock()
 	return nil
 }
@@ -529,7 +540,8 @@ func (this *ChordNode) erase_pair_inData(key string) error {
 			log.Warningln("In erase_pair_inData delete pair in backup error")
 		}
 		if succAddr != "" && succAddr != this.address {
-			tmp_err = RemoteCall(succAddr, "WrapNode.ErasePairInBackup", key, 0)
+			var o string
+			tmp_err = RemoteCall(succAddr, "WrapNode.ErasePairInBackup", key, &o)
 			if tmp_err != nil {
 				log.Warningln("Can not delete pair in backup")
 			}
