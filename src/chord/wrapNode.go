@@ -43,3 +43,7 @@ func (this *WrapNode) InsertPairInData(p KeyValuePair, _ int) error {
 func (this *WrapNode) InsertPairInBackup(p KeyValuePair, _ int) error {
 	return this.node.insert_pair_inBackup(p)
 }
+
+func (this *ChordNode) GetValue(key string, res *string) error {
+
+}

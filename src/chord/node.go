@@ -180,7 +180,13 @@ func (this *ChordNode) Get(key string) (bool, string) {
 		log.Errorln("Can not find the aim node for key : ", key)
 		return false, ""
 	}
-
+	var res string
+	tmp_err = RemoteCall(aimAddr, "WrapNode.GetValue", key, &res)
+	if tmp_err != nil {
+		log.Errorln("Get value error", key)
+		return false, ""
+	}
+	return true, res
 }
 
 func (this *ChordNode) Delete(key string) bool {
