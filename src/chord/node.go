@@ -145,11 +145,41 @@ func (this *ChordNode) Ping(addr string) bool {
 	return isOnline
 }
 
-func (this *ChordNode) Put(key string, value string) bool {
+type KeyValuePair struct {
+	key   string
+	value string
+}
 
+func (this *ChordNode) Put(key string, value string) bool {
+	if !this.conRoutineFlag {
+		//node this is sleep
+		return false
+	}
+	var aimAddr string
+	tmp_err := this.innner_find_successor(ConsistentHash(key), &aimAddr)
+	if tmp_err != nil {
+		log.Errorln("In function Put can not get successor of key : ", key)
+		return false
+	}
+	p := KeyValuePair{key, value}
+	tmp_err = RemoteCall(aimAddr, "WrapNode.InsertPairInData", p, 0)
+	if tmp_err != nil {
+		log.Errorln("In function Put insert pair error", key, value)
+		return false
+	}
+	return true
 }
 
 func (this *ChordNode) Get(key string) (bool, string) {
+	if !this.conRoutineFlag {
+		return false, ""
+	}
+	var aimAddr string
+	tmp_err := this.innner_find_successor(ConsistentHash(key), &aimAddr)
+	if tmp_err != nil {
+		log.Errorln("Can not find the aim node for key : ", key)
+		return false, ""
+	}
 
 }
 
@@ -217,7 +247,7 @@ func (this *ChordNode) transfer_data(preNode string, data *map[string]string) er
 }
 
 func (this *ChordNode) find_first_online_succ(res *string) error {
-	for i := 1; i < successorListLength; i++ {
+	for i := 0; i < successorListLength; i++ {
 		flag := CheckOnline(this.successorList[i])
 		if flag == true {
 			*res = this.successorList[i]
@@ -287,6 +317,16 @@ func (this *ChordNode) add_backup(data map[string]string) error {
 	return nil
 }
 
+func (this *ChordNode) set_backup(backup *map[string]string) error {
+	this.dataLock.RLock()
+	(*backup) = make(map[string]string) //remember to clear the map
+	for key, value := range this.dataSet {
+		(*backup)[key] = value
+	}
+	this.dataLock.RUnlock()
+	return nil
+}
+
 func (this *ChordNode) change_predecessor() error {
 	if !CheckOnline(this.predecessor) {
 		//In func CheckOnline involved the addr is nil
@@ -330,7 +370,10 @@ func (this *ChordNode) bgMaintain() {
 
 	go func() {
 		for this.conRoutineFlag {
-			this.fix_predecessor()
+			tmp_err := this.change_predecessor()
+			if tmp_err != nil {
+				log.Errorln("In bgMaintain change_pre error")
+			}
 			time.Sleep(timeCut)
 		}
 	}()
@@ -363,6 +406,40 @@ func (this *ChordNode) stabilize() {
 		return
 	}
 	this.set_list(&tmpSuccList)
+	tmp_err = RemoteCall(newSuccAddr, "WrapNode.notify", this.address, 0)
+	if tmp_err != nil {
+		log.Errorln("In func satbilize can not let succ notify")
+	}
+}
+
+func (this *ChordNode) fix_fingerTable() {
+	var aimSucc string
+	tmp_err := this.innner_find_successor(getID(this.ID, this.next), &aimSucc)
+	if tmp_err != nil {
+		log.Errorln("In function fix_finger find successor error")
+		return
+	}
+	this.rwLock.Lock()
+	this.fingerTable[this.next] = aimSucc
+	this.next++
+	if this.next >= fingerTableLength {
+		this.next = 1
+	}
+	this.rwLock.Unlock()
+}
+
+func (this *ChordNode) notify(preNode string) error {
+	if this.predecessor == "" || inDur(ConsistentHash(preNode), ConsistentHash(this.predecessor), this.ID, false) {
+		this.rwLock.Lock()
+		this.predecessor = preNode
+		this.rwLock.Unlock()
+		tmp_err := RemoteCall(this.predecessor, "WrapNode.SetBackup", 0, &this.backupSet)
+		if tmp_err != nil {
+			log.Errorln("In function notify can not set backup data")
+			return tmp_err
+		}
+	}
+	return nil
 }
 
 func (this *ChordNode) set_list(succ *[successorListLength]string) {
@@ -373,4 +450,30 @@ func (this *ChordNode) set_list(succ *[successorListLength]string) {
 		this.successorList[i] = (*succ)[i-1]
 	}
 	this.rwLock.Unlock()
+}
+
+//func for hash table:
+func (this *ChordNode) insert_pair_inData(p KeyValuePair) error {
+	this.dataLock.Lock()
+	this.dataSet[p.key] = p.value
+	this.dataLock.Unlock()
+	var succAddr string
+	tmp_err := this.find_first_online_succ(&succAddr)
+	if tmp_err != nil {
+		log.Warningln("Can not find a succ", p)
+	}
+	if succAddr != "" {
+		tmp_err = RemoteCall(succAddr, "WrapNode.InsertPairInBackup", p, 0)
+		if tmp_err != nil {
+			log.Warningln("Can not success store pair in backup", p)
+		}
+	}
+	return nil
+}
+
+func (this *ChordNode) insert_pair_inBackup(p KeyValuePair) error {
+	this.backupLock.Lock()
+	this.backupSet[p.key] = p.value
+	this.backupLock.Unlock()
+	return nil
 }

@@ -27,6 +27,19 @@ func (this *WrapNode) AddBackup(data map[string]string, _ int) error {
 	return this.node.add_backup(data)
 }
 
+func (this *WrapNode) SetBackup(_ int, backup *map[string]string) error {
+	return this.node.set_backup(backup)
+}
+
 func (this *WrapNode) ChangePredecessor(_ int, _ int) error {
 	return this.node.change_predecessor()
+}
+
+//func for hash table:
+func (this *WrapNode) InsertPairInData(p KeyValuePair, _ int) error {
+	return this.node.insert_pair_inData(p)
+}
+
+func (this *WrapNode) InsertPairInBackup(p KeyValuePair, _ int) error {
+	return this.node.insert_pair_inBackup(p)
 }
