@@ -190,7 +190,21 @@ func (this *ChordNode) Get(key string) (bool, string) {
 }
 
 func (this *ChordNode) Delete(key string) bool {
-
+	if !this.conRoutineFlag {
+		return false
+	}
+	var aimAddr string
+	tmp_err := this.innner_find_successor(ConsistentHash(key), &aimAddr)
+	if tmp_err != nil {
+		log.Errorln("In function delete find successor error", key)
+		return false
+	}
+	tmp_err = RemoteCall(aimAddr, "WrapNode.ErasePairInData", key, 0)
+	if tmp_err != nil {
+		log.Errorln("In function delete can not erase key")
+		return false
+	}
+	return true
 }
 
 //private functions:
@@ -482,4 +496,58 @@ func (this *ChordNode) insert_pair_inBackup(p KeyValuePair) error {
 	this.backupSet[p.key] = p.value
 	this.backupLock.Unlock()
 	return nil
+}
+
+func (this *ChordNode) get_value(key string, res *string) error {
+	this.dataLock.RLock()
+	value, flag := this.dataSet[key]
+	this.dataLock.RUnlock()
+	if flag {
+		*res = value
+		return nil
+	} else {
+		*res = ""
+		return errors.New("Nil value")
+	}
+}
+
+func (this *ChordNode) erase_pair_inData(key string) error {
+	this.dataLock.Lock()
+	_, ok := this.dataSet[key]
+	if ok {
+		delete(this.dataSet, key)
+	}
+	this.dataLock.Unlock()
+	if !ok {
+		//delete error
+		log.Errorln("In erase_pair_inData delete not exit", key)
+		return errors.New("Delete failed!")
+	} else {
+		var succAddr string
+		tmp_err := this.innner_find_successor(ConsistentHash(key), &succAddr)
+		if tmp_err != nil {
+			log.Warningln("In erase_pair_inData delete pair in backup error")
+		}
+		if succAddr != "" && succAddr != this.address {
+			tmp_err = RemoteCall(succAddr, "WrapNode.ErasePairInBackup", key, 0)
+			if tmp_err != nil {
+				log.Warningln("Can not delete pair in backup")
+			}
+		}
+		return nil
+	}
+}
+
+func (this *ChordNode) erase_data_inBackup(key string) error {
+	this.backupLock.Lock()
+	_, ok := this.backupSet[key]
+	if ok {
+		delete(this.backupSet, key)
+	}
+	this.backupLock.Unlock()
+	if ok {
+		return nil
+	} else {
+		return errors.New("Not found key backup")
+	}
 }

@@ -44,6 +44,14 @@ func (this *WrapNode) InsertPairInBackup(p KeyValuePair, _ int) error {
 	return this.node.insert_pair_inBackup(p)
 }
 
-func (this *ChordNode) GetValue(key string, res *string) error {
+func (this *WrapNode) GetValue(key string, res *string) error {
+	return this.node.get_value(key, res)
+}
 
+func (this *WrapNode) ErasePairInData(key string) error {
+	return this.node.erase_pair_inData(key)
+}
+
+func (this *WrapNode) ErasePairInBackup(key string) error {
+	return this.node.erase_data_inBackup(key)
 }
