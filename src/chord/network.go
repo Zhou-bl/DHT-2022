@@ -94,13 +94,15 @@ func RemoteCall(aimNode string, aimFunc string, input interface{}, res interface
 		log.Warningln("<RemoteCall> Fail to dial in ", aimNode, " and error is ", tmp_err)
 		return tmp_err
 	}
+	if c != nil {
+		defer c.Close()
+	}
 	tmp_err = c.Call(aimFunc, input, res)
 	if tmp_err != nil {
 		log.Infoln("Can not call function in ", aimNode, " the func is ", aimFunc, tmp_err)
 	} else {
 		log.Infoln("<RemoteCall> in ", aimNode, " with ", aimFunc, " success!")
 	}
-	c.Close()
 	return tmp_err
 }
 

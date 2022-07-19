@@ -29,7 +29,7 @@ func init() {
 		}
 		rand.Seed(time.Now().UnixNano())
 	*/
-	testName = "basic"
+	testName = "all"
 	var err error
 	f, err = os.Create("log.txt")
 	if err != nil {

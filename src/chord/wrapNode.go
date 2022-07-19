@@ -65,5 +65,5 @@ func (this *WrapNode) ErasePairInData(key string, _ *string) error {
 }
 
 func (this *WrapNode) ErasePairInBackup(key string, _ *string) error {
-	return this.node.erase_data_inBackup(key)
+	return this.node.erase_pair_inBackup(key)
 }

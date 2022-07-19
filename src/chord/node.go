@@ -21,22 +21,22 @@ type ChordNode struct {
 	IsQuit         chan bool
 	conRoutineFlag bool
 
-	//network
-	station *network
-
-	rwLock sync.RWMutex
-
 	//for communication
 	successorList [successorListLength]string
 	fingerTable   [fingerTableLength]string
 	predecessor   string
-	next          int
+	rwLock        sync.RWMutex
 
 	//for data
 	dataSet    map[string]string
-	backupSet  map[string]string
 	dataLock   sync.RWMutex
+	backupSet  map[string]string
 	backupLock sync.RWMutex
+
+	//network
+	station *network
+
+	next int
 }
 
 func (this *ChordNode) Init(port int) {
@@ -88,6 +88,7 @@ func (this *ChordNode) Join(addr string) bool {
 		log.Errorln("In function Join GetSuccessor remote call error")
 		return false
 	}
+	log.Infoln("Join node success! The address is", this.address)
 	this.rwLock.Lock()
 	this.predecessor = ""
 	this.successorList[0] = succAddr
@@ -97,9 +98,7 @@ func (this *ChordNode) Join(addr string) bool {
 	}
 	this.rwLock.Unlock()
 	//Transfer data from succAddr to this
-	this.dataLock.Lock() //todo:test
 	tmp_err = RemoteCall(succAddr, "WrapNode.TransferData", this.address, &this.dataSet)
-	this.dataLock.Unlock() //todo:test
 	if tmp_err != nil {
 		log.Errorln("In function Join TransferDate error")
 		return false
@@ -262,9 +261,9 @@ func (this *ChordNode) transfer_data(preNode string, data *map[string]string) er
 	this.backupSet = make(map[string]string)
 	for key, value := range this.dataSet {
 		if !inDur(ConsistentHash(key), ConsistentHash(preNode), this.ID, true) {
-			delete(this.dataSet, key)
 			(*data)[key] = value
 			this.backupSet[key] = value
+			delete(this.dataSet, key)
 		}
 	}
 	this.backupLock.Unlock()
@@ -275,7 +274,6 @@ func (this *ChordNode) transfer_data(preNode string, data *map[string]string) er
 	tmp_err := RemoteCall(succAddr, "WrapNode.SubBackup", *data, &o)
 	if tmp_err != nil {
 		log.Errorln("In function transfer_data can not sub backup")
-		return nil
 	}
 	this.rwLock.Lock()
 	this.predecessor = preNode
@@ -345,7 +343,7 @@ func (this *ChordNode) add_backup(data map[string]string) error {
 
 func (this *ChordNode) set_backup(backup *map[string]string) error {
 	this.dataLock.RLock()
-	(*backup) = make(map[string]string) //remember to clear the map
+	*backup = make(map[string]string) //remember to clear the map
 	for key, value := range this.dataSet {
 		(*backup)[key] = value
 	}
@@ -354,21 +352,24 @@ func (this *ChordNode) set_backup(backup *map[string]string) error {
 }
 
 func (this *ChordNode) change_predecessor() error {
-	if !CheckOnline(this.predecessor) {
-		//In func CheckOnline involved the addr is nil
-		return nil
+	if this.predecessor != "" && !CheckOnline(this.predecessor) {
+		this.rwLock.Lock()
+		this.predecessor = ""
+		this.rwLock.Unlock()
+		//then put backup into dataset
+		this.transfer_backup_to_data()
 	}
-	this.rwLock.Lock()
-	this.predecessor = ""
-	this.rwLock.Unlock()
-	//then put backup into dataset
+	return nil
+}
+
+func (this *ChordNode) transfer_backup_to_data() error {
 	this.dataLock.Lock()
-	this.backupLock.Lock()
+	this.backupLock.RLock()
 	for key, value := range this.backupSet {
 		this.dataSet[key] = value
 	}
 	this.dataLock.Unlock()
-	this.backupLock.Unlock()
+	this.backupLock.RUnlock()
 	//then add new back up
 	var succAddr string
 	tmp_err := this.find_first_online_succ(&succAddr)
@@ -397,10 +398,7 @@ func (this *ChordNode) bgMaintain() {
 
 	go func() {
 		for this.conRoutineFlag {
-			tmp_err := this.change_predecessor()
-			if tmp_err != nil {
-				log.Errorln("In bgMaintain change_pre error")
-			}
+			this.change_predecessor()
 			time.Sleep(timeCut)
 		}
 	}()
@@ -468,9 +466,7 @@ func (this *ChordNode) notify(preNode string) error {
 		this.rwLock.Lock()
 		this.predecessor = preNode
 		this.rwLock.Unlock()
-		this.backupLock.Lock() //todo:test
 		tmp_err := RemoteCall(this.predecessor, "WrapNode.SetBackup", 0, &this.backupSet)
-		this.backupLock.Unlock() //todo:test
 		if tmp_err != nil {
 			log.Errorln("In function notify can not set backup data")
 			return tmp_err
@@ -547,7 +543,7 @@ func (this *ChordNode) erase_pair_inData(key string) error {
 	}
 }
 
-func (this *ChordNode) erase_data_inBackup(key string) error {
+func (this *ChordNode) erase_pair_inBackup(key string) error {
 	this.backupLock.Lock()
 	_, ok := this.backupSet[key]
 	if ok {
