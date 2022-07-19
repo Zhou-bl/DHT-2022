@@ -60,10 +60,10 @@ func (this *WrapNode) GetValue(key string, res *string) error {
 	return this.node.get_value(key, res)
 }
 
-func (this *WrapNode) ErasePairInData(key string) error {
+func (this *WrapNode) ErasePairInData(key string, _ *string) error {
 	return this.node.erase_pair_inData(key)
 }
 
-func (this *WrapNode) ErasePairInBackup(key string) error {
+func (this *WrapNode) ErasePairInBackup(key string, _ *string) error {
 	return this.node.erase_data_inBackup(key)
 }

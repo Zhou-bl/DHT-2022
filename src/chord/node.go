@@ -88,9 +88,18 @@ func (this *ChordNode) Join(addr string) bool {
 		log.Errorln("In function Join GetSuccessor remote call error")
 		return false
 	}
-	this.copySuccessorList_and_init(&tmpSuccList)
+	this.rwLock.Lock()
+	this.predecessor = ""
+	this.successorList[0] = succAddr
+	this.fingerTable[0] = succAddr
+	for i := 1; i < successorListLength; i++ {
+		this.successorList[i] = tmpSuccList[i-1]
+	}
+	this.rwLock.Unlock()
 	//Transfer data from succAddr to this
+	this.dataLock.Lock() //todo:test
 	tmp_err = RemoteCall(succAddr, "WrapNode.TransferData", this.address, &this.dataSet)
+	this.dataLock.Unlock() //todo:test
 	if tmp_err != nil {
 		log.Errorln("In function Join TransferDate error")
 		return false
@@ -172,6 +181,7 @@ func (this *ChordNode) Put(key string, value string) bool {
 		log.Errorln("In function Put insert pair error", key, value)
 		return false
 	}
+	log.Infoln("Put pair success", key, value, aimAddr)
 	return true
 }
 
@@ -302,17 +312,6 @@ func (this *ChordNode) first_pre_node(aimID *big.Int) string {
 	return res
 }
 
-func (this *ChordNode) copySuccessorList_and_init(tmp *[successorListLength]string) {
-	this.rwLock.Lock()
-	this.successorList[0] = this.address
-	this.fingerTable[0] = this.address
-	this.predecessor = ""
-	for i := 1; i < successorListLength; i++ {
-		this.successorList[i] = tmp[i-1]
-	}
-	this.rwLock.Unlock()
-}
-
 func (this *ChordNode) reset() {
 	this.dataLock.Lock()
 	this.dataSet = make(map[string]string)
@@ -417,25 +416,31 @@ func (this *ChordNode) bgMaintain() {
 func (this *ChordNode) stabilize() error {
 	var succAddr string
 	var preAddr string
-	var newSuccAddr string
 	this.find_first_online_succ(&succAddr)
+	log.Infoln("In stabilize find first online succ : ", this.address, succAddr)
 	tmp_err := RemoteCall(succAddr, "WrapNode.GetPredecessor", 0, &preAddr)
 	if tmp_err != nil {
 		log.Errorln("In stabilize get pre error")
 		return tmp_err
 	}
 	if preAddr != "" && inDur(ConsistentHash(preAddr), this.ID, ConsistentHash(succAddr), false) {
-		newSuccAddr = preAddr
+		succAddr = preAddr
 	}
 	var tmpSuccList [successorListLength]string
-	tmp_err = RemoteCall(newSuccAddr, "WrapNode.GetSuccessorList", 0, tmpSuccList)
+	tmp_err = RemoteCall(succAddr, "WrapNode.GetSuccessorList", 0, &tmpSuccList)
 	if tmp_err != nil {
-		log.Errorln("In stabilize GetSuccessorList error")
+		log.Errorln("In stabilize GetSuccessorList error, because of : ", tmp_err, "this addr: ", this.address, "aimAddr : ", succAddr)
 		return tmp_err
 	}
-	this.set_list(&tmpSuccList)
+	this.rwLock.Lock()
+	this.successorList[0] = succAddr
+	this.fingerTable[0] = succAddr
+	for i := 1; i < successorListLength; i++ {
+		this.successorList[i] = tmpSuccList[i-1]
+	}
+	this.rwLock.Unlock()
 	var o string
-	tmp_err = RemoteCall(newSuccAddr, "WrapNode.Notify", this.address, &o)
+	tmp_err = RemoteCall(succAddr, "WrapNode.Notify", this.address, &o)
 	if tmp_err != nil {
 		log.Errorln("In func satbilize can not let succ notify")
 	}
@@ -463,23 +468,15 @@ func (this *ChordNode) notify(preNode string) error {
 		this.rwLock.Lock()
 		this.predecessor = preNode
 		this.rwLock.Unlock()
+		this.backupLock.Lock() //todo:test
 		tmp_err := RemoteCall(this.predecessor, "WrapNode.SetBackup", 0, &this.backupSet)
+		this.backupLock.Unlock() //todo:test
 		if tmp_err != nil {
 			log.Errorln("In function notify can not set backup data")
 			return tmp_err
 		}
 	}
 	return nil
-}
-
-func (this *ChordNode) set_list(succ *[successorListLength]string) {
-	this.rwLock.Lock()
-	this.successorList[0] = this.address
-	this.fingerTable[0] = this.address
-	for i := 1; i < successorListLength; i++ {
-		this.successorList[i] = (*succ)[i-1]
-	}
-	this.rwLock.Unlock()
 }
 
 //func for hash table:

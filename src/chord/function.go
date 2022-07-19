@@ -24,6 +24,10 @@ func init() {
 	mod = new(big.Int).Exp(base, big.NewInt(160), nil)
 	timeCut = 200 * time.Millisecond
 	waitTime = 250 * time.Millisecond
+	//fmt.Println("localaddress : ", localAddress)
+	//fmt.Println("mod : ", mod)
+	//fmt.Println("base : ", base)
+	//log.Infoln("init success!")
 }
 
 func ConsistentHash(str string) *big.Int {
