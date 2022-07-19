@@ -25,9 +25,9 @@ const (
 	basicTestRoundGetSize           int     = 120
 	basicTestRoundDeleteSize        int     = 70
 	basicTestMaxFailRate            float64 = 0.01
-	basicTestAfterRunSleepTime              = 500 * time.Millisecond //todo: origin is 200
+	basicTestAfterRunSleepTime              = 200 * time.Millisecond //todo: origin is 200
 	basicTestJoinQuitSleepTime              = time.Second
-	basicTestAfterJoinQuitSleepTime         = 15 * time.Second //todo: origin is 10
+	basicTestAfterJoinQuitSleepTime         = 10 * time.Second //todo: origin is 10
 
 	forceQuitNodeSize           int     = 50
 	forceQuitPutSize            int     = 500

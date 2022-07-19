@@ -17,6 +17,9 @@ type ChordNode struct {
 	address string
 	ID      *big.Int
 
+	//network
+	station *network
+
 	//for quit
 	IsQuit         chan bool
 	conRoutineFlag bool
@@ -29,12 +32,9 @@ type ChordNode struct {
 
 	//for data
 	dataSet    map[string]string
-	dataLock   sync.RWMutex
 	backupSet  map[string]string
+	dataLock   sync.RWMutex
 	backupLock sync.RWMutex
-
-	//network
-	station *network
 
 	next int
 }
@@ -68,6 +68,7 @@ func (this *ChordNode) Create() {
 
 func (this *ChordNode) Join(addr string) bool {
 	//Node "this" join in a network by node "addr"
+	//function join just indicates the existence of the node
 	isOnline := CheckOnline(addr)
 	if !isOnline {
 		log.Errorln("Node Join Error : Node is not online!")
@@ -325,7 +326,7 @@ func (this *ChordNode) reset() {
 
 func (this *ChordNode) sub_backup(data map[string]string) error {
 	this.backupLock.Lock()
-	for key, _ := range data {
+	for key := range data {
 		delete(this.backupSet, key)
 	}
 	this.backupLock.Unlock()
@@ -357,31 +358,26 @@ func (this *ChordNode) change_predecessor() error {
 		this.predecessor = ""
 		this.rwLock.Unlock()
 		//then put backup into dataset
-		this.transfer_backup_to_data()
+		this.dataLock.Lock()
+		this.backupLock.RLock()
+		for key, value := range this.backupSet {
+			this.dataSet[key] = value
+		}
+		this.dataLock.Unlock()
+		this.backupLock.RUnlock()
+		//then add new back up
+		var succAddr string
+		tmp_err := this.find_first_online_succ(&succAddr)
+		if tmp_err != nil {
+			log.Errorln("In function change_predecessor can not find a succ")
+			return tmp_err
+		}
+		var o string
+		tmp_err = RemoteCall(succAddr, "WrapNode.AddBackup", this.backupSet, &o)
+		this.backupLock.Lock()
+		this.backupSet = make(map[string]string)
+		this.backupLock.Unlock()
 	}
-	return nil
-}
-
-func (this *ChordNode) transfer_backup_to_data() error {
-	this.dataLock.Lock()
-	this.backupLock.RLock()
-	for key, value := range this.backupSet {
-		this.dataSet[key] = value
-	}
-	this.dataLock.Unlock()
-	this.backupLock.RUnlock()
-	//then add new back up
-	var succAddr string
-	tmp_err := this.find_first_online_succ(&succAddr)
-	if tmp_err != nil {
-		log.Errorln("In function change_predecessor can not find a succ")
-		return tmp_err
-	}
-	var o string
-	tmp_err = RemoteCall(succAddr, "WrapNode.AddBackup", this.backupSet, &o)
-	this.backupLock.Lock()
-	this.backupSet = make(map[string]string)
-	this.backupLock.Unlock()
 	return nil
 }
 
@@ -446,6 +442,7 @@ func (this *ChordNode) stabilize() error {
 }
 
 func (this *ChordNode) fix_fingerTable() {
+	//change one item for each run this function
 	var aimSucc string
 	tmp_err := this.innner_find_successor(getID(this.ID, this.next), &aimSucc)
 	if tmp_err != nil {
@@ -454,9 +451,10 @@ func (this *ChordNode) fix_fingerTable() {
 	}
 	this.rwLock.Lock()
 	this.fingerTable[this.next] = aimSucc
-	this.next++
-	if this.next >= fingerTableLength {
-		this.next = 1
+	//change next
+	this.next = (this.next + 1) % fingerTableLength
+	if this.next == 0 {
+		this.next++
 	}
 	this.rwLock.Unlock()
 }
