@@ -107,7 +107,7 @@ func (this *KadNode) Join(ip string) bool {
 		log.Errorln("[Diag error] in ", ip)
 	} else {
 		var res ClosestList
-		tmp_err = client.Call("WrapperNode.FindNode", &FindNodeArg{this.address.Id, this.address}, &res)
+		tmp_err = client.Call("WrapNode.FindNode", &FindNodeArg{this.address.Id, this.address}, &res)
 		for i := 0; i < res.Size; i++ {
 			this.kBucketUpdate(res.List[i])
 		}
@@ -122,9 +122,9 @@ func (this *KadNode) Join(ip string) bool {
 			log.Errorln("[Diag error] in function Join diag error in", closestlist.List[i].Ip)
 		} else {
 			var res ClosestList
-			tmp_err = client.Call("WrapperNode.FindNode", &FindNodeArg{this.address.Id, this.address}, &res)
+			tmp_err = client.Call("WrapNode.FindNode", &FindNodeArg{this.address.Id, this.address}, &res)
 			if tmp_err != nil {
-				log.Errorln("[Error] remotecall FindNode in Join error", this.address.Ip)
+				log.Errorln("[Error] remotecall FindNode in Join error", this.address.Ip, "because", tmp_err)
 			}
 			for j := 0; j < res.Size; j++ {
 				this.kBucketUpdate(res.List[j])
@@ -150,7 +150,7 @@ func (this *KadNode) Put(key string, value string) bool {
 			log.Errorln("[Error] in function Put can not diag node aimIp", closestList.List[i].Ip)
 		} else {
 			var o string
-			tmp_err = client.Call("WrapperNode.AddPair", &StoreArg{key, value, this.address}, &o)
+			tmp_err = client.Call("WrapNode.AddPair", &StoreArg{key, value, this.address}, &o)
 			if tmp_err != nil {
 				log.Errorln("[Error] can not call addpair because", tmp_err)
 			}
@@ -184,7 +184,7 @@ func (this *KadNode) Get(key string) (bool, string) {
 				log.Errorln("[Error] in function get can not diag", closestlist.List[i].Ip, "because", tmp_err)
 				removeList = append(removeList, closestlist.List[i])
 			} else {
-				tmp_err = client.Call("WrapperNode.FindValue", &FindValueArg{Key: key, Sender: this.address}, &res)
+				tmp_err = client.Call("WrapNode.FindValue", &FindValueArg{Key: key, Sender: this.address}, &res)
 				if res.Second != "" {
 					return true, res.Second
 				} else {
@@ -210,7 +210,7 @@ func (this *KadNode) Get(key string) (bool, string) {
 		}
 		defer client.Close()
 		var res FindValueRet
-		client.Call("WrapperNode.FindValue", &FindValueArg{Key: key, Sender: this.address}, &res)
+		client.Call("WrapNode.FindValue", &FindValueArg{Key: key, Sender: this.address}, &res)
 		if res.Second != "" {
 			return true, res.Second
 		}
@@ -272,7 +272,7 @@ func (this *KadNode) NodeLookup(tarID *big.Int) (closestList ClosestList) {
 			if tmp_err != nil {
 				removeList = append(removeList, closestList.List[i])
 			} else {
-				tmp_err = client.Call("WrapperNode.FindNode", &FindNodeArg{TarID: *tarID, Sender: this.address}, &res)
+				tmp_err = client.Call("WrapNode.FindNode", &FindNodeArg{TarID: *tarID, Sender: this.address}, &res)
 				for j := 0; j < res.Size; j++ {
 					tmp.Insert(res.List[j])
 				}

@@ -12,13 +12,13 @@ import (
 const M int = 16
 const K int = 10
 const Alpha int = 3
-const ExpiredTime = 900 * time.Second
+const ExpiredTime = 960 * time.Second
 const NeedRepublicTime = 120 * time.Second
 const waitTime = 250 * time.Millisecond
 const UpdateInterval = 25 * time.Millisecond
 const RepublishINterval = 100 * time.Millisecond
 const RemoteTryTime = 3
-const RemoteTryInterval = 250 * time.Millisecond
+const RemoteTryInterval = 25 * time.Millisecond
 
 var Mod = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(int64(M)), nil)
 var localAddress string
@@ -142,7 +142,7 @@ func (this *ClosestList) Insert(addr AddrType) bool {
 	if this.Size < K {
 		res = true
 		for i := 0; i < this.Size; i++ {
-			tmpDis := dis(&this.Standard, &addr.Id)
+			tmpDis := dis(&this.List[i].Id, &this.Standard)
 			if newDis.Cmp(&tmpDis) < 0 {
 				this.Size++
 				for j := this.Size - 1; j > i; j-- {
@@ -157,7 +157,7 @@ func (this *ClosestList) Insert(addr AddrType) bool {
 		return res
 	} else {
 		for i := 0; i < K; i++ {
-			tmpDis := dis(&this.Standard, &addr.Id)
+			tmpDis := dis(&this.List[i].Id, &this.Standard)
 			if newDis.Cmp(&tmpDis) < 0 {
 				res = true
 				for j := K - 1; j > i; j-- {
