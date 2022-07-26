@@ -99,25 +99,3 @@ func (this *network) ShutDown() error {
 	}
 	return tmp_err
 }
-
-func RemoteCall(aimNode string, aimFunc string, input interface{}, res interface{}) error {
-	if aimNode == "" {
-		log.Warningln("<RemoteCall> IP address is nil")
-		return errors.New("Null address for RemoteCall")
-	}
-	c, tmp_err := GetClient(aimNode)
-	if tmp_err != nil {
-		log.Warningln("<RemoteCall> Fail to dial in ", aimNode, " and error is ", tmp_err)
-		return tmp_err
-	}
-	if c != nil {
-		defer c.Close()
-	}
-	tmp_err = c.Call(aimFunc, input, res)
-	if tmp_err != nil {
-		log.Infoln("Can not call function in ", aimNode, " the func is ", aimFunc, tmp_err)
-	} else {
-		log.Infoln("<RemoteCall> in ", aimNode, " with ", aimFunc, " success!")
-	}
-	return tmp_err
-}

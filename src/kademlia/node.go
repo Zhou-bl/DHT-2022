@@ -95,7 +95,7 @@ func (this *KadNode) Run() {
 	} else {
 		log.Infoln("[Run success] in : ", this.address.Ip)
 		this.conRoutineFlag = true
-		this.bgMaintain()
+		go this.RePublish()
 	}
 }
 
@@ -115,7 +115,24 @@ func (this *KadNode) Join(ip string) bool {
 	}
 
 	closestlist := this.NodeLookup(&this.address.Id)
-
+	for i := 0; i < closestlist.Size; i++ {
+		this.kBucketUpdate(closestlist.List[i])
+		client, tmp_err = Diag(closestlist.List[i].Ip)
+		if tmp_err != nil {
+			log.Errorln("[Diag error] in function Join diag error in", closestlist.List[i].Ip)
+		} else {
+			var res ClosestList
+			tmp_err = client.Call("WrapperNode.FindNode", &FindNodeArg{this.address.Id, this.address}, &res)
+			if tmp_err != nil {
+				log.Errorln("[Error] remotecall FindNode in Join error", this.address.Ip)
+			}
+			for j := 0; j < res.Size; j++ {
+				this.kBucketUpdate(res.List[j])
+			}
+			client.Close()
+		}
+	}
+	return true
 }
 
 func (this *KadNode) Ping(addr string) bool {
@@ -124,12 +141,81 @@ func (this *KadNode) Ping(addr string) bool {
 }
 
 func (this *KadNode) Put(key string, value string) bool {
-	ketID := Hash(key)
-
+	keyID := Hash(key)
+	closestList := this.NodeLookup(&keyID)
+	closestList.Insert(this.address)
+	for i := 0; i < closestList.Size; i++ {
+		client, tmp_err := Diag(closestList.List[i].Ip)
+		if tmp_err != nil {
+			log.Errorln("[Error] in function Put can not diag node aimIp", closestList.List[i].Ip)
+		} else {
+			var o string
+			tmp_err = client.Call("WrapperNode.AddPair", &StoreArg{key, value, this.address}, &o)
+			if tmp_err != nil {
+				log.Errorln("[Error] can not call addpair because", tmp_err)
+			}
+			client.Close()
+		}
+	}
+	return true
 }
 
 func (this *KadNode) Get(key string) (bool, string) {
-
+	keyID := Hash(key)
+	isDiaged := make(map[string]bool)
+	finfValueRes := this.FindValue(key, &keyID)
+	if finfValueRes.Second != "" {
+		return true, finfValueRes.Second
+	}
+	closestlist := finfValueRes.First
+	isUpdated := true
+	for isUpdated {
+		isUpdated = false
+		var tmp ClosestList
+		var removeList []AddrType
+		for i := 0; i < closestlist.Size; i++ {
+			if isDiaged[closestlist.List[i].Ip] == true {
+				continue
+			}
+			client, tmp_err := Diag(closestlist.List[i].Ip)
+			isDiaged[closestlist.List[i].Ip] = true
+			var res FindValueRet
+			if tmp_err != nil {
+				log.Errorln("[Error] in function get can not diag", closestlist.List[i].Ip, "because", tmp_err)
+				removeList = append(removeList, closestlist.List[i])
+			} else {
+				tmp_err = client.Call("WrapperNode.FindValue", &FindValueArg{Key: key, Sender: this.address}, &res)
+				if res.Second != "" {
+					return true, res.Second
+				} else {
+					for j := 0; j < res.First.Size; j++ {
+						tmp.Insert(res.First.List[j])
+					}
+				}
+				client.Close()
+			}
+		}
+		for _, rmKey := range removeList {
+			closestlist.Remove(rmKey)
+		}
+		for i := 0; i < tmp.Size; i++ {
+			isUpdated = isUpdated || closestlist.Insert(tmp.List[i])
+		}
+	}
+	secList := this.NodeLookup(&keyID)
+	for _, aimAddr := range secList.List {
+		client, tmp_err := Diag(aimAddr.Ip)
+		if tmp_err != nil {
+			log.Errorln("[Error] in function Get can not diag", aimAddr.Ip, "because", tmp_err)
+		}
+		defer client.Close()
+		var res FindValueRet
+		client.Call("WrapperNode.FindValue", &FindValueArg{Key: key, Sender: this.address}, &res)
+		if res.Second != "" {
+			return true, res.Second
+		}
+	}
+	return false, ""
 }
 
 func (this *KadNode) FindNode(tarID *big.Int) (closestList ClosestList) {
@@ -182,6 +268,7 @@ func (this *KadNode) NodeLookup(tarID *big.Int) (closestList ClosestList) {
 			client, tmp_err := Diag(closestList.List[i].Ip)
 			diaged[closestList.List[i].Ip] = true
 			var res ClosestList
+			//remove the offline node
 			if tmp_err != nil {
 				removeList = append(removeList, closestList.List[i])
 			} else {
@@ -196,10 +283,28 @@ func (this *KadNode) NodeLookup(tarID *big.Int) (closestList ClosestList) {
 			closestList.Remove(key)
 		}
 		for i := 0; i < tmp.Size; i++ {
+			//todo:can be simplified
 			isUpdate = isUpdate || closestList.Insert(tmp.List[i])
 		}
 	}
 	return
+}
+
+func (this *KadNode) RePublish() {
+	for this.conRoutineFlag {
+		for i := 0; i < M; i++ {
+			this.routeTable[i].Reflesh()
+		}
+		this.mux.Lock()
+		copyData := this.data.CopyData()
+		republishList := this.data.GetRePublishList()
+		this.mux.Unlock()
+		for _, key := range republishList {
+			this.Put(key, copyData[key])
+		}
+		this.data.DeleteExpiredData()
+		time.Sleep(RepublishINterval)
+	}
 }
 
 //private functions:

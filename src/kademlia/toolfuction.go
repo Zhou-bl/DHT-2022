@@ -284,3 +284,13 @@ func (this *DataType) SubPair(key string) (founded bool) {
 	}
 	return founded
 }
+
+func (this *DataType) CopyData() map[string]string {
+	res := make(map[string]string)
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	for key, value := range this.hashMap {
+		res[key] = value
+	}
+	return res
+}
