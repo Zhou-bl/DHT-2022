@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"time"
@@ -25,13 +26,13 @@ func init() {
 	para2 = ""
 	para3 = ""
 	para4 = ""
-	fmt.Println("Hello, welcome to Bittorrent!")
+	color.Red("Hello, welcome to Bittorrent!")
 	time.Sleep(insInterval)
 	fmt.Println("Input \"cmd\" to get the commands of Bittorrent.")
 }
 
 func MyInit() {
-	fmt.Println("Hello, welcome to init!")
+	color.Red("Hello, welcome to init!")
 	fmt.Println("Please input your IP to initialize:")
 	fmt.Scanln(&myIP)
 	fmt.Println("Programme begin to initialize...")
@@ -61,18 +62,25 @@ func main() {
 		fmt.Scanln(&para1, &para2, &para3, &para4)
 
 		if para1 == "cmd" {
-			fmt.Println("Below are all commands for this app : ")
-			fmt.Println("<-------------------------------------------------------------------------------------------------------------------------------->")
-			fmt.Println("|  get IP                             		#Get local IP address.                                                                |")
-			fmt.Println("|  init                               		#To initialize your node by your ip address.                                          |")
-			fmt.Println("|  bye                                		#Shut down the programme and quit your node from network automaticly.                 |")
-			fmt.Println("|  cmd                                		#Get all commands of this application.                                                |")
-			fmt.Println("|  quit                   					#Quit your node from network.                                                         |")
-			fmt.Println("|  create                 					#Create a new network base your node.                                                 |")
-			fmt.Println("|  join [IP address]      					#Join a network by node [IP address].                                                 |")
-			fmt.Println("|  upload [file path] [aim path]      		#upload a file in [file path] and the .torrent will be in [ai, path].                 |")
-			fmt.Println("|  download [file path] [aim path]	   		#down by .torrent in [file path] into [aim path].                                     |")
-			fmt.Println("<-------------------------------------------------------------------------------------------------------------------------------->")
+			color.Green("Below are all commands for this app : ")
+			color.Red("$get IP")
+			fmt.Println("#Get local IP address.")
+			color.Red("$init")
+			fmt.Println("#To initialize your node by your ip address.")
+			color.Red("$bye")
+			fmt.Println("#Shut down the programme and quit your node from network automaticly.")
+			color.Red("$cmd")
+			fmt.Println("#Get all commands of this application.")
+			color.Red("$quit")
+			fmt.Println("#Quit your node from network.")
+			color.Red("$create")
+			fmt.Println("#Create a new network base your node.")
+			color.Red("$join [IP address]")
+			fmt.Println("#Join a network by node [IP address].")
+			color.Red("upload [file path] [aim path]")
+			fmt.Println("#upload a file in [file path] and the .torrent will be in [ai, path].")
+			color.Red("$download [file path] [aim path]")
+			fmt.Println("#down by .torrent in [file path] into [aim path].")
 			continue
 		}
 
