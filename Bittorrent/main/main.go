@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
+	"os"
 	"time"
 )
 
@@ -9,11 +11,15 @@ var myNode dhtNode
 var myIP string
 var running bool
 var isOnline bool
+var isInit bool
 var para1, para2, para3, para4 string
 
 const insInterval = 1500 * time.Millisecond
 
+var f *os.File
+
 func init() {
+	isInit = false
 	running = true
 	para1 = ""
 	para2 = ""
@@ -35,9 +41,16 @@ func MyInit() {
 	isOnline = true
 	fmt.Println("Programme finished initialing.")
 	time.Sleep(insInterval)
+	isInit = true
 }
 
 func main() {
+	var err error
+	f, err = os.Create("log.txt")
+	if err != nil {
+		fmt.Println("fail to open log file")
+	}
+	log.SetOutput(f)
 	for running {
 		time.Sleep(insInterval)
 		para1 = ""
@@ -49,16 +62,28 @@ func main() {
 
 		if para1 == "cmd" {
 			fmt.Println("Below are all commands for this app : ")
-			fmt.Println("<--------------------------------------------------------------------------------------------------------------------------->")
-			fmt.Println("|  init                               #To initialize your node by your ip address.                                          |")
-			fmt.Println("|  bye                                #Shut down the programme and quit your node from network automaticly.                 |")
-			fmt.Println("|  cmd                                #Get all commands of this application.                                                |")
-			fmt.Println("|  quit                   			   #Quit your node from network.                                                         |")
-			fmt.Println("|  create                 			   #Create a new network base your node.                                                 |")
-			fmt.Println("|  join [IP address]      			   #Join a network by node [IP address].                                                 |")
-			fmt.Println("|  upload [file path] [aim path]      #upload a file in [file path] and the .torrent will be in [ai, path].                 |")
-			fmt.Println("|  download [file path] [aim path]	   #down by .torrent in [file path] into [aim path].                                     |")
-			fmt.Println("<--------------------------------------------------------------------------------------------------------------------------->")
+			fmt.Println("<-------------------------------------------------------------------------------------------------------------------------------->")
+			fmt.Println("|  get IP                             		#Get local IP address.                                                                |")
+			fmt.Println("|  init                               		#To initialize your node by your ip address.                                          |")
+			fmt.Println("|  bye                                		#Shut down the programme and quit your node from network automaticly.                 |")
+			fmt.Println("|  cmd                                		#Get all commands of this application.                                                |")
+			fmt.Println("|  quit                   					#Quit your node from network.                                                         |")
+			fmt.Println("|  create                 					#Create a new network base your node.                                                 |")
+			fmt.Println("|  join [IP address]      					#Join a network by node [IP address].                                                 |")
+			fmt.Println("|  upload [file path] [aim path]      		#upload a file in [file path] and the .torrent will be in [ai, path].                 |")
+			fmt.Println("|  download [file path] [aim path]	   		#down by .torrent in [file path] into [aim path].                                     |")
+			fmt.Println("<-------------------------------------------------------------------------------------------------------------------------------->")
+			continue
+		}
+
+		if para1 == "get" {
+			address := GetLocalAddress()
+			fmt.Println("This is your local address :", address)
+			continue
+		}
+
+		if para1 == "init" {
+			MyInit()
 			continue
 		}
 
@@ -90,6 +115,10 @@ func main() {
 		}
 
 		if para1 == "join" {
+			if isInit == false {
+				fmt.Println("Please initialize first.")
+				continue
+			}
 			flag := myNode.Join(para2)
 			time.Sleep(insInterval)
 			if flag {
