@@ -141,6 +141,29 @@ func (this *KadNode) Ping(addr string) bool {
 }
 
 func (this *KadNode) Put(key string, value string) bool {
+	log.Infoln("In Put begin the time is", time.Now())
+	keyID := Hash(key)
+	closestList := this.NodeLookup(&keyID)
+	closestList.Insert(this.address)
+	for i := 0; i < closestList.Size; i++ {
+		client, tmp_err := Diag(closestList.List[i].Ip)
+		if tmp_err != nil {
+			log.Errorln("[Error] in function Put can not diag node aimIp", closestList.List[i].Ip, "because", tmp_err)
+		} else {
+			var o string
+			tmp_err = client.Call("WrapNode.AddPair", &StoreArg{key, value, this.address}, &o)
+			if tmp_err != nil {
+				log.Errorln("[Error] can not call addpair because", tmp_err)
+			}
+			client.Close()
+		}
+	}
+	log.Infoln("In Put end the time is", time.Now())
+	return true
+}
+
+func (this *KadNode) aPut(key string, value string) bool {
+	//log.Infoln("In RePut begin the time is", time.Now())
 	keyID := Hash(key)
 	closestList := this.NodeLookup(&keyID)
 	closestList.Insert(this.address)
@@ -157,10 +180,13 @@ func (this *KadNode) Put(key string, value string) bool {
 			client.Close()
 		}
 	}
+	//log.Infoln("In RePut end the time is", time.Now())
 	return true
 }
 
 func (this *KadNode) Get(key string) (bool, string) {
+	log.Infoln("Function Get begin in", time.Now())
+	defer log.Infoln("Function Get end in", time.Now())
 	keyID := Hash(key)
 	isDiaged := make(map[string]bool)
 	finfValueRes := this.FindValue(key, &keyID)
@@ -174,7 +200,7 @@ func (this *KadNode) Get(key string) (bool, string) {
 		var tmp ClosestList
 		var removeList []AddrType
 		for i := 0; i < closestlist.Size; i++ {
-			if isDiaged[closestlist.List[i].Ip] == true {
+			if closestlist.List[i].Ip == "" || isDiaged[closestlist.List[i].Ip] == true {
 				continue
 			}
 			client, tmp_err := Diag(closestlist.List[i].Ip)
@@ -207,6 +233,7 @@ func (this *KadNode) Get(key string) (bool, string) {
 		client, tmp_err := Diag(aimAddr.Ip)
 		if tmp_err != nil {
 			log.Errorln("[Error] in function Get can not diag", aimAddr.Ip, "because", tmp_err)
+			continue
 		}
 		defer client.Close()
 		var res FindValueRet
@@ -219,6 +246,10 @@ func (this *KadNode) Get(key string) (bool, string) {
 }
 
 func (this *KadNode) FindNode(tarID *big.Int) (closestList ClosestList) {
+	if tarID == nil {
+		log.Errorln("[Error] in function FindNode tarID is nil")
+		return
+	}
 	this.mux.RLock()
 	defer this.mux.RUnlock()
 	closestList.Standard = *tarID
@@ -240,11 +271,14 @@ func (this *KadNode) FindValue(key string, hash *big.Int) FindValueRet {
 	if founded {
 		return FindValueRet{ClosestList{}, value}
 	}
-	retClosest := ClosestList{Standard: *hash}
-	for i := 0; i < M; i++ {
-		for j := 0; j < this.routeTable[i].size; j++ {
-			if Ping(this.routeTable[i].bucket[j].Ip) == nil { //if online
-				retClosest.Insert(this.routeTable[i].bucket[j])
+	var retClosest ClosestList
+	if hash != nil {
+		retClosest = ClosestList{Standard: *hash}
+		for i := 0; i < M; i++ {
+			for j := 0; j < this.routeTable[i].size; j++ {
+				if Ping(this.routeTable[i].bucket[j].Ip) == nil { //if online
+					retClosest.Insert(this.routeTable[i].bucket[j])
+				}
 			}
 		}
 	}
@@ -252,6 +286,10 @@ func (this *KadNode) FindValue(key string, hash *big.Int) FindValueRet {
 }
 
 func (this *KadNode) NodeLookup(tarID *big.Int) (closestList ClosestList) {
+	if tarID == nil {
+		log.Errorln("[Error] the bigInt is nil")
+		return
+	}
 	closestList = this.FindNode(tarID)
 	closestList.Insert(this.address)
 	isUpdate := true
@@ -283,7 +321,6 @@ func (this *KadNode) NodeLookup(tarID *big.Int) (closestList ClosestList) {
 			closestList.Remove(key)
 		}
 		for i := 0; i < tmp.Size; i++ {
-			//todo:can be simplified
 			isUpdate = isUpdate || closestList.Insert(tmp.List[i])
 		}
 	}
@@ -292,6 +329,7 @@ func (this *KadNode) NodeLookup(tarID *big.Int) (closestList ClosestList) {
 
 func (this *KadNode) RePublish() {
 	for this.conRoutineFlag {
+		//log.Infoln("Begin Republish", time.Now())
 		for i := 0; i < M; i++ {
 			this.routeTable[i].Reflesh()
 		}
@@ -300,9 +338,10 @@ func (this *KadNode) RePublish() {
 		republishList := this.data.GetRePublishList()
 		this.mux.Unlock()
 		for _, key := range republishList {
-			this.Put(key, copyData[key])
+			this.aPut(key, copyData[key])
 		}
 		this.data.DeleteExpiredData()
+		//log.Infoln("End Republish", time.Now())
 		time.Sleep(RepublishINterval)
 	}
 }

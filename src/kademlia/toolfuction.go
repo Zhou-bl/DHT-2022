@@ -10,7 +10,7 @@ import (
 )
 
 const M int = 16
-const K int = 10
+const K int = 15
 const Alpha int = 3
 const ExpiredTime = 960 * time.Second
 const NeedRepublicTime = 120 * time.Second
@@ -235,6 +235,7 @@ func (this *DataType) GetRePublishList() (republishList []string) {
 	for key, tim := range this.republishTime {
 		if time.Now().After(tim) {
 			republishList = append(republishList, key)
+			this.republishTime[key] = time.Now().Add(NeedRepublicTime)
 		}
 	}
 	return republishList
